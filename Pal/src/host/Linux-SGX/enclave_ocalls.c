@@ -984,6 +984,18 @@ int ocall_gettime (unsigned long * microsec)
     int retval = 0;
     ms_ocall_gettime_t * ms;
 
+    /* 
+	MST: optimize gettime by making it a bit more coarse-grained, from
+	https://github.com/oscarlab/graphene/issues/1117#issuecomment-549688285
+    */
+    static uint64_t iter = 0;
+    static uint64_t microsec_cached = 0;
+    if (iter % 100000 != 0) {
+        *microsec = microsec_cached;
+        return 0;
+    }
+    iter++;
+
     ms = sgx_alloc_on_ustack_aligned(sizeof(*ms), alignof(*ms));
     if (!ms) {
         sgx_reset_ustack();
@@ -995,6 +1007,7 @@ int ocall_gettime (unsigned long * microsec)
     } while(retval == -EINTR);
     if (!retval)
         *microsec = ms->ms_microsec;
+    microsec_cached = ms->ms_microsec;
 
     sgx_reset_ustack();
     return retval;
